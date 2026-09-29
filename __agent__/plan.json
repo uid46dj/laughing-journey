@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "items": [
+    {
+      "title": "Audit the current product render, branding, and project constraints",
+      "status": "done"
+    },
+    {
+      "title": "Research free CLI image-generation options suitable for this project",
+      "status": "done"
+    },
+    {
+      "title": "Design and implement a stronger 3D product scene",
+      "status": "done"
+    },
+    {
+      "title": "Create and integrate a distinctive Valé logo",
+      "status": "done"
+    },
+    {
+      "title": "Build, smoke-test, and recheck the public tunnel",
+      "status": "in-progress"
+    }
+  ],
+  "updated_at": "2026-09-29T06:16:18.761Z",
+  "session_id": "01a0ebb7-b1f0-71ca-bccc-8afc430bbc3f"
+}
