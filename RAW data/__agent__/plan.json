@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "items": [
+    {
+      "title": "Audit the existing site, components, assets, and working interactions; run a visual baseline",
+      "status": "done"
+    },
+    {
+      "title": "Implement the refined design system, cinematic hero, and editorial product story",
+      "status": "done"
+    },
+    {
+      "title": "Build accessible product discovery, personalisation, and honest reservation interactions",
+      "status": "done"
+    },
+    {
+      "title": "Polish responsive layouts, motion, accessibility, performance, and metadata",
+      "status": "in-progress"
+    },
+    {
+      "title": "Test routes and interactions across screen sizes, review screenshots, and fix remaining issues",
+      "status": "pending"
+    }
+  ],
+  "updated_at": "2026-09-29T11:13:01.667Z",
+  "session_id": "01a0ecc7-dc19-7466-bde4-526df87922c4"
+}

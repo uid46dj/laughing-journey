@@ -216,16 +216,6 @@ function App() {
     document.getElementById('personalise')?.scrollIntoView({ behavior: 'instant' });
     document.getElementById('engraving')?.focus({ preventScroll: true });
   });
-  const exploreFromContact = () => {
-    setInfo(null);
-    requestAnimationFrame(() => {
-      document.getElementById('reserve')?.scrollIntoView({ behavior: 'instant' });
-      // The next dialog should restore a visible, useful trigger, not a button
-      // inside the information dialog that has just closed.
-      document.querySelector('.reservation-copy > .button')?.focus({ preventScroll: true });
-      setReservationOpen(true);
-    });
-  };
 
   return <div className="app-shell" id="top" ref={root}>
     <Header />
@@ -242,7 +232,7 @@ function App() {
     <Modal open={Boolean(info)} onClose={() => setInfo(null)} titleId="information-title" className="information-dialog">
       <p className="eyebrow">VALÉ / The considered life</p>
       <h2 className="dialog-title" id="information-title">{info === 'care' ? 'Made to be kept.' : 'The atelier.'}</h2>
-      {info === 'care' ? <div className="care-content"><p>A little attention, for an everyday companion.</p><h3>Care for the finish</h3><p>Gently wipe with a soft, dry cloth. Avoid abrasive cleaners and keep your pen in its presentation case when not in use.</p><h3>Keep the ritual</h3><p>Obsidian No. 01 is refillable, with a black Schmidt® refill. Check the correct replacement and fitting instructions before changing a refill.</p><h3>A lasting relationship</h3><p>Lifetime service is part of the Obsidian story. Service enquiries are not connected in this website preview.</p></div> : <div className="care-content"><p>For questions about your Obsidian, personalisation or care.</p><p className="dialog-notice">This website is a product preview. An atelier enquiry service is not connected, and no messages or personal details are collected here.</p><Button className="button--dark" onClick={exploreFromContact}>Explore your selection</Button></div>}
+      {info === 'care' ? <div className="care-content"><p>A little attention, for an everyday companion.</p><h3>Care for the finish</h3><p>Gently wipe with a soft, dry cloth. Avoid abrasive cleaners and keep your pen in its presentation case when not in use.</p><h3>Keep the ritual</h3><p>Obsidian No. 01 is refillable, with a black Schmidt® refill. Check the correct replacement and fitting instructions before changing a refill.</p><h3>A lasting relationship</h3><p>Lifetime service is part of the Obsidian story. Service enquiries are not connected in this website preview.</p></div> : <div className="care-content"><p>For questions about your Obsidian, personalisation or care.</p><p className="dialog-notice">This website is a product preview. An atelier enquiry service is not connected, and no messages or personal details are collected here.</p><Button className="button--dark" onClick={() => { setInfo(null); setReservationOpen(true); }}>Explore your selection</Button></div>}
     </Modal>
   </div>;
 }

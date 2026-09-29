@@ -2,26 +2,18 @@
   "schema_version": 1,
   "items": [
     {
-      "title": "Audit the existing app, live page, assets, routes, and interactions",
+      "title": "inspect repository and choose integration location",
       "status": "done"
     },
     {
-      "title": "Define and implement the v2 luxury layout, product discovery, and personalization flow",
-      "status": "done"
-    },
-    {
-      "title": "Unify motion, accessibility, responsive behavior, metadata, and performance details",
-      "status": "done"
-    },
-    {
-      "title": "Run build and interaction smoke tests across local and tunnel URLs",
+      "title": "implement single-file chess GUI with modes and analysis",
       "status": "in-progress"
     },
     {
-      "title": "Perform a final visual and conversion-focused polish pass",
+      "title": "run syntax and smoke checks",
       "status": "pending"
     }
   ],
-  "updated_at": "2026-09-29T06:32:10.485Z",
-  "session_id": "01a0ebb7-b1f0-71ca-bccc-8afc430bbc3f"
+  "updated_at": "2026-09-29T17:10:47.153Z",
+  "session_id": "01a0ee20-09ac-77cd-972c-5629432032d4"
 }

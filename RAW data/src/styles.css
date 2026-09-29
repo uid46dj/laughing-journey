@@ -241,7 +241,7 @@ svg { display: block; }
 .preview-toggle button[aria-pressed=true] { background: #c2ae8521; color: var(--ivory); }
 
 /* An invitation, not a checkout. */
-.reservation { position: relative; padding-block: 90px 105px; overflow: hidden; }
+.reservation { position: relative; padding-block: 90px 105px; }
 .reservation-layout { display: grid; grid-template-columns: 1.12fr .88fr; gap: 13%; align-items: center; }
 .reservation .section-label { margin-bottom: 38px; }
 .reservation-product { position: relative; min-height: 480px; }
@@ -353,7 +353,6 @@ svg { display: block; }
   .hero-actions .text-link { font-size: 9px; gap: 9px; }
   .hero-product-scene { width: 132%; left: -12%; }
   .hero-product-caption { right: 3%; bottom: 14%; }
-  .hero-product-index { display: none; }
   .hero-edition { display: none; }
   .hero-specs { margin: 0; gap: 48px; }
   .philosophy-layout { gap: 7%; grid-template-columns: 1.15fr .85fr; }
@@ -388,7 +387,7 @@ svg { display: block; }
   .hero-intro > p { font-size: 12px; }
   .hero-actions { align-items: flex-start; flex-direction: column; gap: 8px; }
   .hero-product { margin-left: -16%; }
-  .hero-product-scene { width: 140%; left: -23%; }
+  .hero-product-scene { width: 152%; left: -22%; }
   .hero-product-caption { right: 0; bottom: 19%; }
   .hero-product-caption .caption-rule { display: none; }
   .scroll-cue { font-size: 8px; gap: 12px; }
@@ -448,7 +447,7 @@ svg { display: block; }
   .hero-edition-ghost { top: -20%; right: -3%; font-size: 290px; }
   .hero-product-caption { bottom: 9%; right: 1%; font-size: 8px; }
   .hero-product-caption small { display: none; }
-  .hero-product-index { display: block; top: 19%; right: 1%; font-size: 7px; }
+  .hero-product-index { top: 19%; right: 1%; font-size: 7px; }
   .hero-intro { grid-area: 3 / 1; padding-top: 0; padding-bottom: 34px; }
   .hero-intro > p { font-size: 12px; line-height: 1.9; }
   .hero-actions { margin-top: 22px; gap: 24px; }
