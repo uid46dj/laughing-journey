@@ -2,26 +2,26 @@
   "schema_version": 1,
   "items": [
     {
-      "title": "Audit the current product render, branding, and project constraints",
+      "title": "Audit the existing app, live page, assets, routes, and interactions",
       "status": "done"
     },
     {
-      "title": "Research free CLI image-generation options suitable for this project",
+      "title": "Define and implement the v2 luxury layout, product discovery, and personalization flow",
       "status": "done"
     },
     {
-      "title": "Design and implement a stronger 3D product scene",
+      "title": "Unify motion, accessibility, responsive behavior, metadata, and performance details",
       "status": "done"
     },
     {
-      "title": "Create and integrate a distinctive Valé logo",
-      "status": "done"
-    },
-    {
-      "title": "Build, smoke-test, and recheck the public tunnel",
+      "title": "Run build and interaction smoke tests across local and tunnel URLs",
       "status": "in-progress"
+    },
+    {
+      "title": "Perform a final visual and conversion-focused polish pass",
+      "status": "pending"
     }
   ],
-  "updated_at": "2026-09-29T06:16:18.761Z",
+  "updated_at": "2026-09-29T06:32:10.485Z",
   "session_id": "01a0ebb7-b1f0-71ca-bccc-8afc430bbc3f"
 }
