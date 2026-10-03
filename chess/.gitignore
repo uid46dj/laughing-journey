@@ -1,6 +1,11 @@
-node_modules
-dist
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Node (only used by the editor tooling here, not by the apps)
+node_modules/
+dist/
+
 .DS_Store
 .env
-playwright-report/
-test-results/

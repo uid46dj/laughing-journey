@@ -2,7 +2,7 @@ import os
 import sys
 import time
 
-sys.path.insert(0, "/workspaces/laughing-journey/chess_arena")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from chess_arena import (Board, Evaluator, Searcher, TranspositionTable,
                          TimeManager, START_FEN, MATE_BOUND)
 
