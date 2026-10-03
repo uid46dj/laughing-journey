@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <title>PhoneCam — send this phone's camera to the PC</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; padding: 16px; min-height: 100vh; font: 15px/1.5 system-ui, sans-serif;
+        background: #0b0720; color: #ede9fe; display: flex; flex-direction: column; gap: 12px;
+      }
+      h1 { margin: 0; font-size: 20px; }
+      p  { margin: 0; color: #a5b4fc; font-size: 13px; }
+      #view { width: 100%; border-radius: 16px; background: #000; aspect-ratio: 4/3; object-fit: cover; display: block; }
+      button {
+        padding: 14px 18px; font-size: 17px; font-weight: 700; border: 0; border-radius: 14px;
+        background: #fbbf24; color: #1e1b4b; width: 100%;
+      }
+      button.stop { background: #f87171; }
+      button.ghost { background: #ffffff18; color: #c7d2fe; font-weight: 600; font-size: 14px; padding: 10px; }
+      #st { font: 600 13px ui-monospace, monospace; color: #6ee7b7; min-height: 1.5em; }
+      #st.err { color: #fca5a5; }
+      .row { display: flex; gap: 10px; }
+      label { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; padding: 8px 0; }
+      select { background: #1e1b4b; color: #ede9fe; border: 1px solid #ffffff22; border-radius: 10px; padding: 8px; font-size: 14px; }
+    </style>
+  </head>
+  <body>
+    <h1>📷 Phone → PC camera</h1>
+    <p>No app needed. This sends your camera over USB to the game on the PC.</p>
+
+    <video id="view" playsinline muted autoplay></video>
+    <div id="st">idle</div>
+
+    <button id="go">Start streaming</button>
+    <div class="row">
+      <button class="ghost" id="flip">Swap camera</button>
+      <button class="ghost" id="flipv" data-on="0">Flip vertical: OFF</button>
+      <button class="ghost" id="stop" style="display:none">Stop</button>
+    </div>
+
+    <label>Camera <select id="which"></select></label>
+    <label>Quality
+      <select id="q">
+        <option value="0.5">Low (fastest)</option>
+        <option value="0.68" selected>Medium</option>
+        <option value="0.82">High</option>
+      </select>
+    </label>
+    <label>Send rate
+      <select id="fps">
+        <option value="15">15 fps</option>
+        <option value="24">24 fps</option>
+        <option value="30" selected>30 fps</option>
+      </select>
+    </label>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const video = $('view'), st = $('st'), go = $('go'), stop = $('stop');
+
+      let stream = null, canvas = null, ctx = null, running = false;
+      let inFlight = false, lastSend = 0, sent = 0, face = 'environment', lastDevice = '';
+      let flipV = false;
+
+      const say = (m, err) => { st.textContent = m; st.className = err ? 'err' : ''; };
+      const opt = () => ({ q: parseFloat($('q').value), fps: parseInt($('fps').value, 10) });
+
+      async function listCams() {
+        try {
+          const devs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
+          const sel = $('which');
+          sel.innerHTML = '';
+          devs.forEach((d, i) => {
+            const o = document.createElement('option');
+            o.value = d.deviceId;
+            o.textContent = d.label || 'Camera ' + (i + 1);
+            sel.appendChild(o);
+          });
+          if (lastDevice) sel.value = lastDevice;
+        } catch (e) { /* labels only appear after permission is granted */ }
+      }
+
+      async function start() {
+        stopStream();
+        const deviceId = $('which').value || undefined;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: { ideal: face } }),
+              width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: opt().fps },
+            },
+            audio: false,
+          });
+        } catch (e) {
+          return say('Camera blocked: ' + e.message + ' — allow camera for this page, then retry.', true);
+        }
+        lastDevice = deviceId || '';
+        video.srcObject = stream;
+        await video.play().catch(() => {});
+        canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+        running = true;
+        go.style.display = 'none';
+        stop.style.display = '';
+        listCams();
+        say('streaming...');
+        if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(loop);
+        else requestAnimationFrame(loop);
+      }
+
+      function loop() {
+        if (!running) return;
+        if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(loop);
+        else requestAnimationFrame(loop);
+        // Drop frames while a POST is in flight: dropping beats queueing for latency.
+        if (inFlight || video.readyState < 2) return;
+        const now = performance.now();
+        if (now - lastSend < 1000 / opt().fps) return;
+        lastSend = now;
+        if (flipV) {
+          ctx.save();
+          ctx.translate(0, canvas.height);
+          ctx.scale(1, -1);
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          ctx.restore();
+        } else {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        }
+        canvas.toBlob((blob) => { if (blob) post(blob); }, 'image/jpeg', opt().q);
+      }
+
+      function post(blob) {
+        inFlight = true;
+        const t = Date.now();
+        fetch('/frame?t=' + t + '&w=' + canvas.width + '&h=' + canvas.height, { method: 'POST', body: blob })
+          .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); sent++; })
+          .catch(() => say('Upload failed - is the PC server still running?', true))
+          .finally(() => { inFlight = false; });
+      }
+
+      function stopStream() {
+        running = false;
+        if (stream) stream.getTracks().forEach((t) => t.stop());
+        stream = null;
+        video.srcObject = null;
+        go.style.display = '';
+        stop.style.display = 'none';
+      }
+
+      go.addEventListener('click', start);
+      stop.addEventListener('click', () => { stopStream(); say('stopped'); });
+      $('flip').addEventListener('click', () => {
+        face = face === 'environment' ? 'user' : 'environment';
+        lastDevice = ''; $('which').value = '';
+        if (running) start();
+      });
+      $('which').addEventListener('change', () => { if (running) start(); });
+      $('flipv').addEventListener('click', () => {
+        flipV = !flipV;
+        $('flipv').style.background = flipV ? '#86efac' : '#ffffff18';
+        $('flipv').textContent = 'Flip vertical: ' + (flipV ? 'ON' : 'OFF');
+        $('flipv').dataset.on = flipV ? '1' : '0';
+        // the PC shows the flipped image, so also flip this page's preview to match
+        video.style.transform = flipV ? 'scaleY(-1)' : '';
+        say(flipV ? 'flipped vertically' : 'normal orientation');
+      });
+      window.addEventListener('pagehide', stopStream);
+      setInterval(() => { if (running) say('sent ' + sent + ' frames to PC'); }, 1000);
+    </script>
+  </body>
+</html>

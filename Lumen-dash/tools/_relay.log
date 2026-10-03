@@ -1,0 +1,11 @@
+
+  PhoneCam server ready
+  ---------------------------------------------
+  On the PC        : http://localhost:8080/health
+  On the PHONE     : http://localhost:8080/
+
+  Next: let the phone reach this PC (USB tunnel):
+      adb reverse tcp:8080 tcp:8080
+
+  Stop with Ctrl+C.
+

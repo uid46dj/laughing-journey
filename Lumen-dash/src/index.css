@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #1b1510;
+  font-family: "Avenir Next", "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+  color: #f1edff;
+  user-select: none;
+}
+
+.glow-text {
+  background: linear-gradient(100deg, #f3e3bd 0%, #d8b271 55%, #a8874f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 18px rgba(240, 171, 252, 0.45));
+}
+
+.glass {
+  background: linear-gradient(160deg, rgba(30, 22, 72, 0.78), rgba(14, 10, 38, 0.82));
+  border: 1px solid rgba(196, 181, 253, 0.22);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(14px);
+}
+
+@keyframes flash {
+  0% { transform: scale(1.5); filter: brightness(2.2); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+.flash { animation: flash 0.45s ease-out; }
+
+@keyframes pop {
+  0% { transform: scale(0.4); opacity: 0; }
+  35% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.9; }
+}
+.pop { animation: pop 0.6s ease-out; }
+
+@keyframes nudgeL { 0%,100% { transform: translateX(0); } 50% { transform: translateX(-18px); } }
+@keyframes nudgeR { 0%,100% { transform: translateX(0); } 50% { transform: translateX(18px); } }
+@keyframes hop { 0%,100% { transform: translateY(0); } 40% { transform: translateY(-22px); } }
+@keyframes squat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(18px); } }
+.nudge-l { animation: nudgeL 1.2s ease-in-out infinite; }
+.nudge-r { animation: nudgeR 1.2s ease-in-out infinite; }
+.hop { animation: hop 1.2s ease-in-out infinite; }
+.squat { animation: squat 1.2s ease-in-out infinite; }
+
+@keyframes toast { 0% { transform: translateY(-12px); opacity: 0; } 10%, 90% { transform: none; opacity: 1; } 100% { opacity: 0; } }
+.toast { animation: toast 4s ease forwards; }
+
+input[type="range"] { accent-color: #c9a15e; }

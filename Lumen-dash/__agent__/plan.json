@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "items": [
+    {
+      "title": "Inspect the project and reproduce reported errors",
+      "status": "in-progress"
+    },
+    {
+      "title": "Fix the identified code or configuration errors",
+      "status": "pending"
+    },
+    {
+      "title": "Rerun checks and review the changes",
+      "status": "pending"
+    }
+  ],
+  "updated_at": "2026-10-03T05:55:41.792Z",
+  "session_id": "01a10053-e713-73d7-bd18-1213cbfceca8"
+}
