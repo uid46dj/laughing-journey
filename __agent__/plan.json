@@ -2,18 +2,18 @@
   "schema_version": 1,
   "items": [
     {
-      "title": "inspect repository and choose integration location",
+      "title": "Review the unfinished Chess Arena code and define integration interfaces",
       "status": "done"
     },
     {
-      "title": "implement single-file chess GUI with modes and analysis",
+      "title": "Complete engine fixes, persistence, analysis, and the desktop interface",
       "status": "in-progress"
     },
     {
-      "title": "run syntax and smoke checks",
+      "title": "Add CLI commands and end-to-end tests, then rebuild and verify",
       "status": "pending"
     }
   ],
-  "updated_at": "2026-09-29T17:10:47.153Z",
-  "session_id": "01a0ee20-09ac-77cd-972c-5629432032d4"
+  "updated_at": "2026-10-02T18:01:07.360Z",
+  "session_id": "01a0fdc2-6f3f-7153-af26-063a5510b87b"
 }
