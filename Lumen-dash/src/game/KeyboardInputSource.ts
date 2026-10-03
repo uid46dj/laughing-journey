@@ -60,6 +60,7 @@ export class KeyboardInputSource implements InputSource {
       jumpPressed: this.jump,
       slideHeld: this.down.has('ArrowDown') || this.down.has('KeyS') || this.down.has('ControlLeft') || this.down.has('ControlRight'),
       pausePressed: this.pause,
+      jogCadence: null,
       trackingState: 'n/a',
     };
     this.step = 0;

@@ -58,7 +58,7 @@ On the PC: open `http://localhost:5173` → **Settings → Use phone as camera**
 
 | Command | What it does |
 |---|---|
-| `npm run dev:cam` | **everything** — relay + Vite + adb tunnel (use this) |
+| `npm run dev:cam` | **everything** — relay + Vite + adb tunnels (use this) |
 | `npm run dev` | just Vite (plain game dev, no phone) |
 | `npm run phonecam` | just the relay server (if the game is already running) |
 | `npm run phone-port` | open a port **on the phone** via `adb shell` (no app) |
@@ -76,6 +76,46 @@ treat as a **secure context**, so `getUserMedia` is allowed. A LAN IP would be b
 * Phone quality/fps are adjustable **on the phone page**; lower quality = lower latency.
 * `adb reverse` resets on unplug/reboot — re-run it after reconnecting.
 * The game runs the pose model on the PC, so the phone only needs to send pixels.
+
+## Two phones: jog speed + the monster
+
+A **second phone** turns the game into a real jog: point it at your legs, jog in
+place, and your leg cadence drives the runner's speed. The faster you jog, the
+faster you run — and the further **the Hollow** (the monster hunting you from
+behind) falls back. Stand still or jog slowly and it gains on you; if it reaches
+you, the run ends. Hitting obstacles also lets it gain.
+
+The second phone does all the work itself: it analyses its own camera feed
+(frame-differencing motion detection on the lower half of the frame — no AI
+model) and sends only a tiny JSON number (`{cadence, visible}`) to the relay
+every 200 ms. No video is streamed to the PC, so there is no conflict with the
+body-camera stream and the payload is a few bytes over USB.
+
+```
+[2nd phone]  rear cam → motion energy (lower 60%) → peaks/s = cadence
+             → POST /cadence (JSON) → USB → [PC] JogSource → speed multiplier
+```
+
+### Start
+
+`npm run dev:cam` wires up **every** phone plugged in over USB (`adb reverse`
+per device). Then:
+
+* **Phone 1** (body): open `http://localhost:8080/` → *Start streaming*.
+* **Phone 2** (legs): open `http://localhost:8080/legs` → *Start sensing*,
+  point the camera at your legs. The page shows a live cadence meter —
+  ~2.5 steps/s is neutral, ≥3 is the fast zone.
+* **PC**: Settings → *Use phone as camera* ON, *Second phone = jog speed* ON →
+  *Play with Camera*.
+
+The HUD shows the live cadence and the monster's proximity bar. Without a leg
+phone (or in keyboard mode) the speed curve and monster behave exactly as
+before — the monster only gains on hits.
+
+Tuning: all constants live in `JOG` (src/game/config.ts) — target cadence,
+multiplier range (0.8–1.3), and how fast the monster gains/recovers. The track
+is planned for the worst-case speed so jump/slide timing stays fair at any
+cadence.
 
 ## Opening a port ON the phone (`adb forward`)
 
@@ -115,10 +155,10 @@ Under the hood: `toybox nc -4 -L -p 9096 sh /data/local/tmp/phonecam/handler.sh`
 
 ```
 Webcam → cam/CameraSource → cam/PoseEstimator → cam/LandmarkFilter (One-Euro)
-       → cam/GestureEngine (calibration + detectors)                ← game-agnostic
-       → cam/GestureInputSource → RunnerInput                      ← the only bridge
-       → game/Game (fixed 120 Hz sim + three.js renderer)
-```
+        → cam/GestureEngine (calibration + detectors)                ← game-agnostic
+        → cam/GestureInputSource → RunnerInput                      ← the only bridge
+2nd phone → tools/legcam-phone.html → relay /cadence → cam/JogSource → RunnerInput.jogCadence
+        → game/Game (fixed 120 Hz sim + three.js renderer)
 
 The project is split into two flat folders, `src/game` and `src/cam`:
 

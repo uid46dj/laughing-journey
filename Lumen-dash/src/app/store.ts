@@ -41,6 +41,8 @@ export interface Settings {
   flipVertical: boolean;
   deviceId: string;
   tutorialDone: boolean;
+  /** Use a second phone (at /legs) as the jog-speed sensor. */
+  jogPhone: boolean;
 }
 
 const SETTINGS_KEY = 'lumen-dash-settings';
@@ -57,6 +59,7 @@ const defaults: Settings = {
   flipVertical: false,
   deviceId: '',
   tutorialDone: false,
+  jogPhone: true,
 };
 
 function loadSettings(): Settings {
@@ -122,6 +125,8 @@ export const hudStore = createStore<HudState>({
   speed: 11,
   pips: 2,
   closeness: 0,
+  jogCadence: null,
+  jogMult: 1,
   best: 0,
   newBest: false,
   biome: 'Causeway',

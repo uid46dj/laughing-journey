@@ -1,4 +1,4 @@
-import { RUN, speedAt, tierAt } from './config';
+import { RUN, planSpeedAt, tierAt } from './config';
 import type { ObstacleKind } from './config';
 import { Rng } from './rng';
 import { PATTERNS } from './patterns';
@@ -92,7 +92,9 @@ export class TrackGenerator {
         const gap = this.rowGap(this.prevRow!, row, base);
         const prev = this.prevRow!;
         const prevS = this.cursor;
-        this.cursor += gap * speedAt(this.cursor) * 1.05;
+        // Plan for the worst-case (fastest) speed so jump/slide timing
+        // stays fair even when the player jogs at max multiplier.
+        this.cursor += gap * planSpeedAt(this.cursor) * 1.05;
         this.placeMotesBetween(out, prev, row, prevS, this.cursor);
         this.updateReachable(prev, row, base, gap);
       }
@@ -166,7 +168,7 @@ export class TrackGenerator {
   }
 
   private rest(out: SpawnItem[], minSec: number, maxSec: number, fixedDist?: number) {
-    const dist = fixedDist ?? this.rng.range(minSec, maxSec) * speedAt(this.cursor) * 1.05;
+    const dist = fixedDist ?? this.rng.range(minSec, maxSec) * planSpeedAt(this.cursor) * 1.05;
     const lane = this.rng.int(-1, 1) as Lane;
     const n = Math.min(12, Math.floor((dist - 4) / 1.8));
     const start = this.cursor + 3;

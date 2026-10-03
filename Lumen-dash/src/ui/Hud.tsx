@@ -2,15 +2,45 @@ import { controller } from '../app/Controller';
 import { gestureStore, hudStore, settingsStore, uiStore, useStore } from '../app/store';
 import { Btn, PreviewCanvas } from './common';
 
-function Pips({ n }: { n: number }) {
+/** The Hollow's proximity — how close the monster is to catching you. */
+function MonsterBar({ closeness }: { closeness: number }) {
+  const near = closeness > 0.7;
   return (
-    <div className="flex items-center gap-1.5" aria-label={`${n} hits left`}>
-      {[0, 1].map((i) => (
+    <div className="flex items-center gap-2" aria-label={`monster ${Math.round(closeness * 100)} percent close`}>
+      <span className={`text-lg ${near ? 'animate-pulse' : ''}`} title="The Hollow — keep jogging to keep it back">
+        👹
+      </span>
+      <div className="h-2.5 w-24 overflow-hidden rounded-full bg-white/10">
         <div
-          key={i}
-          className={`h-4 w-4 rotate-45 rounded-[3px] border ${i < n ? 'border-amber-200 bg-amber-300 shadow-[0_0_10px_#fbbf24]' : 'border-white/30 bg-transparent'}`}
+          className={`h-full rounded-full transition-[width] duration-200 ${
+            near ? 'bg-rose-500 shadow-[0_0_10px_#f43f5e]' : 'bg-gradient-to-r from-amber-400 to-rose-500'
+          }`}
+          style={{ width: `${Math.round(closeness * 100)}%` }}
         />
-      ))}
+      </div>
+    </div>
+  );
+}
+
+/** Live leg-cadence from the second phone. Target 2.5 steps/s, fast ≥ 3. */
+function CadenceMeter({ cadence }: { cadence: number }) {
+  const pct = Math.min(100, (cadence / 5) * 100);
+  const fast = cadence >= 3;
+  const ok = cadence >= 2;
+  return (
+    <div className="flex items-center gap-2 rounded-xl bg-black/40 p-2" title="Jog cadence — faster jog = faster run">
+      <span className="text-lg">🏃</span>
+      <div className="relative h-2.5 w-24 overflow-hidden rounded-full bg-white/10">
+        <div className="absolute inset-y-0 left-1/2 w-0.5 bg-amber-300/80" />
+        <div className="absolute inset-y-0 right-0 w-[40%] bg-emerald-400/15" />
+        <div
+          className={`h-full rounded-full transition-[width] duration-150 ${
+            fast ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : ok ? 'bg-amber-300' : 'bg-rose-400'
+          }`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="w-12 text-right font-bold tabular-nums text-sm">{cadence.toFixed(1)}/s</span>
     </div>
   );
 }
@@ -99,9 +129,15 @@ export function Hud() {
                   </span>
                 )}
               </div>
-              <Pips n={h.pips} />
+              <MonsterBar closeness={h.closeness} />
               <div className="text-xs font-semibold text-cyan-200/80">
                 {h.biome} · Tier {h.tier} · {Math.round(h.speed * 3.6)} km/h
+                {h.jogCadence != null && Math.abs(h.jogMult - 1) > 0.02 && (
+                  <span className={h.jogMult > 1 ? 'text-emerald-300' : 'text-rose-300'}>
+                    {' '}
+                    ×{h.jogMult.toFixed(2)}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -119,6 +155,7 @@ export function Hud() {
                 </div>
               )}
               {cam && <GestureIndicator />}
+              {cam && h.jogCadence != null && <CadenceMeter cadence={h.jogCadence} />}
               {cam && (
                 <button
                   className="pointer-events-auto rounded-lg bg-black/40 px-3 py-1.5 text-sm font-semibold text-violet-100 hover:bg-black/60"
@@ -142,10 +179,15 @@ export function Hud() {
       )}
 
       {h.state === 'countdown' && (
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
           <div key={h.countdown} className="pop glow-text text-[10rem] font-black italic leading-none">
             {h.countdown}
           </div>
+          {h.jogCadence != null && (
+            <div className="pop mt-4 rounded-full bg-black/50 px-5 py-2 text-sm font-bold text-amber-200">
+              Jog in place — faster jog = faster run!
+            </div>
+          )}
         </div>
       )}
 

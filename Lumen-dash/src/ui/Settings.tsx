@@ -74,6 +74,38 @@ function PhoneCamRow() {
   );
 }
 
+/** Second phone as jog-speed sensor: relay cadence status + switch. */
+function JogPhoneRow() {
+  const [status, setStatus] = useState<string>('checking...');
+  const [ok, setOk] = useState(false);
+  const s = useStore(settingsStore);
+  const set = settingsStore.set;
+
+  const poll = async () => {
+    const r = await controller.jog.probe(800);
+    setOk(r.ok);
+    setStatus(r.message);
+  };
+  useEffect(() => {
+    void poll();
+    const id = window.setInterval(poll, 2500);
+    return () => window.clearInterval(id);
+  }, []);
+
+  return (
+    <>
+      <Row label="Second phone = jog speed" hint={status}>
+        <Toggle on={s.jogPhone} onChange={(v) => set({ jogPhone: v })} />
+      </Row>
+      {s.jogPhone && !ok && (
+        <div className="pt-3 text-xs text-amber-200/90">
+          Relay server not detected. Run <code>npm run phonecam</code>, then open the <code>/legs</code> URL on the second phone.
+        </div>
+      )}
+    </>
+  );
+}
+
 export function Settings() {
   const s = useStore(settingsStore);
   const ui = useStore(uiStore);
@@ -101,6 +133,7 @@ export function Settings() {
           </div>
         </Row>
         <PhoneCamRow />
+        <JogPhoneRow />
         <Row label="Camera">
           <select
             className="max-w-[12rem] rounded-lg border border-white/20 bg-[#1a1240] px-2 py-1 text-sm"

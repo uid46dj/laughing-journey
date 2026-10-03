@@ -25,10 +25,14 @@ const PORT = Number(
   argPort !== -1 && process.argv[argPort + 1] ? process.argv[argPort + 1] : process.env.PHONE_CAM_PORT || 8080,
 );
 const PHONE_PAGE = path.join(__dirname, 'phonecam-phone.html');
+const LEGS_PAGE = path.join(__dirname, 'legcam-phone.html');
 
 /** Newest frame only. seq lets the PC tell "did I get something new". */
 const latest = { buf: null, seq: 0, tsSent: 0, width: 0, height: 0 };
 const waiters = new Set();
+/** Newest leg-cadence reading from the second phone (tiny JSON, not video). */
+const cadence = { c: 0, v: false, seq: 0, ts: 0 };
+const cadenceWaiters = new Set();
 const stats = { frames: 0, bytes: 0, startedAt: Date.now() };
 
 const CORS = {
@@ -40,6 +44,17 @@ const CORS = {
 const notify = () => {
   for (const w of [...waiters]) {
     waiters.delete(w);
+    try {
+      w();
+    } catch {
+      /* ignore */
+    }
+  }
+};
+
+const notifyCadence = () => {
+  for (const w of [...cadenceWaiters]) {
+    cadenceWaiters.delete(w);
     try {
       w();
     } catch {
@@ -82,6 +97,69 @@ const server = http.createServer((req, res) => {
       stats.bytes += buf.length;
       notify();
       send(200, 'text/plain', 'ok');
+    });
+    return;
+  }
+
+  // ---- 2nd phone pushes its leg-cadence reading here -------------------
+  if (req.method === 'POST' && url.pathname === '/cadence') {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > 64 * 1024) {
+        req.destroy();
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on('end', () => {
+      if (!chunks.length) return send(400, 'text/plain', 'empty');
+      try {
+        const j = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        cadence.c = Number(j.c) || 0;
+        cadence.v = !!j.v;
+        cadence.ts = Number(j.t) || Date.now();
+        cadence.seq++;
+        notifyCadence();
+        send(200, 'text/plain', 'ok');
+      } catch {
+        send(400, 'text/plain', 'bad json');
+      }
+    });
+    return;
+  }
+
+  // ---- PC pulls the newest cadence (long-poll) --------------------------
+  if (req.method === 'GET' && url.pathname === '/cadence') {
+    const since = Number(url.searchParams.get('since') || 0);
+    const deliver = () => {
+      send(200, 'application/json', JSON.stringify({
+        c: cadence.c,
+        v: cadence.v,
+        seq: cadence.seq,
+        ts: cadence.ts,
+      }));
+    };
+    if (cadence.seq > since) return deliver();
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      cadenceWaiters.delete(waiter);
+      deliver();
+    };
+    const timer = setTimeout(() => {
+      cadenceWaiters.delete(waiter);
+      done = true;
+      deliver();
+    }, 500);
+    const waiter = finish;
+    cadenceWaiters.add(waiter);
+    req.on('close', () => {
+      clearTimeout(timer);
+      cadenceWaiters.delete(waiter);
     });
     return;
   }
@@ -137,6 +215,12 @@ const server = http.createServer((req, res) => {
         height: latest.height,
         frames: stats.frames,
         avgFps: Math.round(stats.frames / Math.max(0.001, (Date.now() - stats.startedAt) / 1000)),
+        cadence: {
+          streaming: cadence.seq > 0 && Date.now() - cadence.ts < 2000,
+          seq: cadence.seq,
+          cadence: Math.round(cadence.c * 10) / 10,
+          visible: cadence.v,
+        },
       }),
     );
   }
@@ -145,13 +229,23 @@ const server = http.createServer((req, res) => {
     return send(200, 'application/json', JSON.stringify(stats));
   }
 
-  // ---- the phone page -------------------------------------------------------
+  // ---- the phone pages -------------------------------------------------------
   if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/phone')) {
     try {
       const html = fs.readFileSync(PHONE_PAGE, 'utf8');
       return send(200, 'text/html; charset=utf-8', html);
     } catch (e) {
       return send(500, 'text/plain', `Cannot read ${PHONE_PAGE}: ${e.message}`);
+    }
+  }
+
+  // second phone: leg-cadence sensor (jog speed)
+  if (req.method === 'GET' && (url.pathname === '/legs' || url.pathname === '/legcam')) {
+    try {
+      const html = fs.readFileSync(LEGS_PAGE, 'utf8');
+      return send(200, 'text/html; charset=utf-8', html);
+    } catch (e) {
+      return send(500, 'text/plain', `Cannot read ${LEGS_PAGE}: ${e.message}`);
     }
   }
 
@@ -164,6 +258,7 @@ server.listen(PORT, '127.0.0.1', () => {
   console.log('  ---------------------------------------------');
   console.log(`  On the PC        : http://localhost:${PORT}/health`);
   console.log(`  On the PHONE     : http://localhost:${PORT}/`);
+  console.log(`  On the 2nd PHONE : http://localhost:${PORT}/legs   (jog-speed sensor)`);
   console.log('');
   console.log('  Next: let the phone reach this PC (USB tunnel):');
   console.log(`      adb reverse tcp:${PORT} tcp:${PORT}`);

@@ -8,6 +8,35 @@ export const SPEED = { start: 11, max: 28, tau: 2000 };
 export const speedAt = (d: number) => SPEED.max - (SPEED.max - SPEED.start) * Math.exp(-d / SPEED.tau);
 export const tierAt = (s: number) => Math.min(5, 1 + Math.floor(s / 400));
 
+/**
+ * Jog-speed control (second phone pointed at the player's legs).
+ * The phone measures leg-cadence in steps/sec and sends it to the relay;
+ * the game maps it to a bounded multiplier around the auto speed curve.
+ * The track generator plans spacing with planSpeedAt() (worst case) so
+ * jump/slide timing stays fair at ANY multiplier within the range.
+ */
+export const JOG = {
+  /** Cadence (steps/sec) that maps to a 1.0× multiplier. */
+  target: 2.5,
+  /** Multiplier change per step/sec off target. */
+  sensitivity: 0.35,
+  minMult: 0.8,
+  maxMult: 1.3,
+  /** Closeness gained per second at full-slow (standing still catches in ~17 s). */
+  gainRate: 0.3,
+  /** Closeness recovered per second at full-fast. */
+  recoverRate: 0.45,
+  /** No cadence update for this long => treat as "no leg phone" (neutral). */
+  signalTimeoutMs: 1500,
+} as const;
+
+/** Multiplier for a measured cadence, clamped to the fair range. */
+export const jogMultFor = (cadence: number) =>
+  Math.min(JOG.maxMult, Math.max(JOG.minMult, 1 + (cadence - JOG.target) * JOG.sensitivity));
+
+/** Worst-case speed the track is planned for — always sufficient at any multiplier. */
+export const planSpeedAt = (d: number) => speedAt(d) * JOG.maxMult;
+
 export const RUN = {
   laneTime: 0.14,
   jumpHeight: 1.9,

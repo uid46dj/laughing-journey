@@ -47,6 +47,7 @@ export class GestureInputSource implements InputSource {
       jumpPressed: jump && usable,
       slideHeld: usable && s!.posture === 'crouching',
       pausePressed: pause,
+      jogCadence: null,
       trackingState: s ? (s.calibrated ? s.tracking : 'n/a') : 'lost',
     };
   }

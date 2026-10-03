@@ -9,8 +9,10 @@ export function Menu() {
       <div className="max-w-md space-y-8">
         <Logo />
         <p className="max-w-sm text-lg leading-snug text-violet-100/90">
-          Run the glass causeway. <span className="text-amber-300">Lean</span>, <span className="text-amber-300">jump</span> and{' '}
-          <span className="text-amber-300">duck</span> — with your actual body. The Hollow is close behind.
+          Run the glass causeway. <span className="text-amber-300">Lean</span>,{' '}
+          <span className="text-amber-300">jump</span> and{' '}
+          <span className="text-amber-300">duck</span> — with your actual body.
+          <span className="text-fuchsia-300"> The Hollow hunts you from behind: jog to stay ahead.</span>
         </p>
         <div className="flex flex-col gap-3">
           <Btn onClick={() => void controller.startCameraFlow()}>📷 Play with Camera</Btn>
@@ -43,6 +45,7 @@ const MOVES = [
   { icon: '➡', title: 'Step or lean right', text: 'Move to your right — the runner takes the right lane.', anim: 'nudge-r' },
   { icon: '⬆', title: 'Jump', text: 'A real hop. Clears low amber barriers and cracks.', anim: 'hop' },
   { icon: '⬇', title: 'Crouch', text: 'Drop your shoulders. Slide under cyan gates. Stay low to keep sliding.', anim: 'squat' },
+  { icon: '🏃', title: 'Jog in place (2nd phone)', text: 'A second phone pointed at your legs reads your cadence. Jog faster to run faster — and push the Hollow back.', anim: 'hop' },
 ];
 
 export function HowTo() {
@@ -92,6 +95,13 @@ export function HowTo() {
               <li>Plain background and a contrasting top help tracking.</li>
               <li>Hold both hands above your head for 1 second to pause.</li>
             </ul>
+            <div className="mt-3 font-bold text-white">Jog-speed phone (optional)</div>
+            <ul className="list-disc space-y-1 pl-5">
+              <li>On a second phone, open the <code>/legs</code> URL printed by <code>npm run dev:cam</code>.</li>
+              <li>Point its camera at your legs, tap <b>Start sensing</b>.</li>
+              <li>Jog in place: ~2.5 steps/s is neutral, faster = faster (and the Hollow falls back).</li>
+              <li>Stand still and the Hollow gains on you — keep moving!</li>
+            </ul>
           </div>
           <div>
             <div className="mb-1 font-bold text-white">Keyboard</div>
@@ -101,7 +111,7 @@ export function HowTo() {
               <li>↓ / S / Ctrl: crouch & slide</li>
               <li>Esc / P: pause · F3: debug overlay</li>
             </ul>
-            <p className="mt-2 text-xs text-violet-300/70">Collect motes in a row to build a ×4 multiplier. One hit lets the Hollow close in; a second hit while it is close ends the run.</p>
+            <p className="mt-2 text-xs text-violet-300/70">Collect motes in a row to build a ×4 multiplier. The Hollow gains when you jog too slowly or hit obstacles — if it reaches you, the run ends. Keyboard mode runs at a steady pace; the Hollow only gains on hits.</p>
           </div>
         </div>
       </div>

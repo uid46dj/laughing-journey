@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <title>LegCam — jog-speed sensor for Lumen Dash</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; padding: 16px; min-height: 100vh; font: 15px/1.5 system-ui, sans-serif;
+        background: #0b0720; color: #ede9fe; display: flex; flex-direction: column; gap: 12px;
+      }
+      h1 { margin: 0; font-size: 20px; }
+      p  { margin: 0; color: #a5b4fc; font-size: 13px; }
+      #view { width: 100%; border-radius: 16px; background: #000; aspect-ratio: 4/3; object-fit: cover; display: block; }
+      button {
+        padding: 14px 18px; font-size: 17px; font-weight: 700; border: 0; border-radius: 14px;
+        background: #fbbf24; color: #1e1b4b; width: 100%;
+      }
+      button.stop { background: #f87171; }
+      button.ghost { background: #ffffff18; color: #c7d2fe; font-weight: 600; font-size: 14px; padding: 10px; }
+      #st { font: 600 13px ui-monospace, monospace; color: #6ee7b7; min-height: 1.5em; }
+      #st.err { color: #fca5a5; }
+      .row { display: flex; gap: 10px; }
+      label { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; padding: 8px 0; }
+      select { background: #1e1b4b; color: #ede9fe; border: 1px solid #ffffff22; border-radius: 10px; padding: 8px; font-size: 14px; }
+      /* cadence meter */
+      #meter { position: relative; height: 34px; border-radius: 12px; background: #ffffff10; overflow: hidden; }
+      #meter .zone { position: absolute; top: 0; bottom: 0; }
+      #meter .target { position: absolute; top: 0; bottom: 0; width: 2px; background: #fcd34d; }
+      #meter .fast { background: #34d39933; }
+      #fill { position: absolute; top: 0; bottom: 0; left: 0; width: 0%; background: linear-gradient(90deg, #f87171, #fbbf24 45%, #34d399 70%); transition: width 120ms linear; }
+      #meterLabels { display: flex; justify-content: space-between; font: 600 11px ui-monospace, monospace; color: #a5b4fc; }
+      #cadenceBig { font: 800 44px ui-monospace, monospace; color: #fff; text-align: center; line-height: 1.1; }
+      #cadenceBig small { font-size: 16px; color: #a5b4fc; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <h1>🏃 Leg → PC jog sensor</h1>
+    <p>Point this phone at your legs. Jog in place — your leg speed drives the game character. No app needed.</p>
+
+    <video id="view" playsinline muted autoplay></video>
+    <div id="cadenceBig">– <small>steps/s</small></div>
+    <div id="meter">
+      <div class="zone fast" style="left:60%"></div>
+      <div class="target" style="left:50%"></div>
+      <div id="fill"></div>
+    </div>
+    <div id="meterLabels"><span>0</span><span>target 2.5</span><span>fast ≥3</span><span>5</span></div>
+    <div id="st">idle</div>
+
+    <button id="go">Start sensing</button>
+    <div class="row">
+      <button class="ghost" id="flip">Swap camera</button>
+      <button class="ghost" id="flipv" data-on="0">Flip vertical: OFF</button>
+      <button class="ghost" id="stop" style="display:none">Stop</button>
+    </div>
+    <label>Camera <select id="which"></select></label>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const video = $('view'), st = $('st'), go = $('go'), stop = $('stop');
+      const fill = $('fill'), big = $('cadenceBig');
+
+      // analysis resolution — small on purpose, this runs on the phone
+      const W = 160, H = 120, TOP = 0.4; // lower 60% of the frame = legs
+      const NOISE = 0.003;          // motion energy below this = legs not visible
+      const REFRACTORY_MS = 250;    // min time between two peaks
+      const WINDOW_MS = 1000;       // cadence = peaks in the last 1 s
+      const SEND_MS = 200;          // POST rate to the PC
+
+      let stream = null, canvas = null, ctx = null, running = false;
+      let face = 'environment', lastDevice = '', flipV = false;
+      let prevGray = null, gray = new Uint8ClampedArray(W * H);
+      let ema = 0, baseline = 0.002, lastPeak = 0, peaks = [];
+      let lastSend = 0, sent = 0, inFlight = false;
+
+      const say = (m, err) => { st.textContent = m; st.className = err ? 'err' : ''; };
+
+      async function listCams() {
+        try {
+          const devs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
+          const sel = $('which');
+          sel.innerHTML = '';
+          devs.forEach((d, i) => {
+            const o = document.createElement('option');
+            o.value = d.deviceId;
+            o.textContent = d.label || 'Camera ' + (i + 1);
+            sel.appendChild(o);
+          });
+          if (lastDevice) sel.value = lastDevice;
+        } catch (e) { /* labels only appear after permission is granted */ }
+      }
+
+      async function start() {
+        stopStream();
+        const deviceId = $('which').value || undefined;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: { ideal: face } }),
+              width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30 },
+            },
+            audio: false,
+          });
+        } catch (e) {
+          return say('Camera blocked: ' + e.message + ' — allow camera for this page, then retry.', true);
+        }
+        lastDevice = deviceId || '';
+        video.srcObject = stream;
+        await video.play().catch(() => {});
+        canvas = document.createElement('canvas');
+        canvas.width = W; canvas.height = H;
+        ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+        prevGray = null; ema = 0; baseline = 0.002; peaks = []; lastPeak = 0;
+        running = true;
+        go.style.display = 'none';
+        stop.style.display = '';
+        listCams();
+        say('sensing... jog in place');
+        if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(loop);
+        else requestAnimationFrame(loop);
+      }
+
+      function loop() {
+        if (!running) return;
+        if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(loop);
+        else requestAnimationFrame(loop);
+        if (video.readyState < 2) return;
+        const now = performance.now();
+        const r = analyze(now);
+        // live meter
+        const pct = Math.min(100, (r.cadence / 5) * 100);
+        fill.style.width = pct + '%';
+        big.innerHTML = (r.visible ? r.cadence.toFixed(1) : '–') + ' <small>steps/s</small>';
+        big.style.color = !r.visible ? '#f87171' : r.cadence >= 3 ? '#34d399' : r.cadence >= 2 ? '#fcd34d' : '#f87171';
+        if (now - lastSend >= SEND_MS) {
+          lastSend = now;
+          if (!inFlight) post(r);
+        }
+      }
+
+      /** Frame-differencing motion energy on the lower 60% of the frame. */
+      function analyze(now) {
+        if (flipV) {
+          ctx.save();
+          ctx.translate(0, H);
+          ctx.scale(1, -1);
+          ctx.drawImage(video, 0, 0, W, H);
+          ctx.restore();
+        } else {
+          ctx.drawImage(video, 0, 0, W, H);
+        }
+        const data = ctx.getImageData(0, 0, W, H).data;
+        const y0 = Math.floor(H * TOP);
+        let sum = 0, n = 0;
+        for (let y = y0; y < H; y++) {
+          const row = y * W;
+          for (let x = 0; x < W; x++) {
+            const i = (row + x) * 4;
+            const g = (data[i] + data[i + 1] + data[i + 2]) / 3;
+            if (prevGray) sum += Math.abs(g - prevGray[row + x]);
+            gray[row + x] = g;
+            n++;
+          }
+        }
+        if (prevGray) prevGray.set(gray);
+        else prevGray = Uint8ClampedArray.from(gray);
+        const energy = n ? sum / n / 255 : 0;
+        ema = ema * 0.6 + energy * 0.4;
+        // slow-adapting baseline (only while no peak is happening)
+        if (now - lastPeak > 2000) baseline = Math.max(0.002, baseline * 0.995 + ema * 0.005);
+        const threshold = baseline * 1.8 + 0.002;
+        if (ema > threshold && now - lastPeak > REFRACTORY_MS) {
+          lastPeak = now;
+          peaks.push(now);
+        }
+        while (peaks.length && peaks[0] < now - WINDOW_MS) peaks.shift();
+        return { cadence: peaks.length, visible: ema > NOISE };
+      }
+
+      function post(r) {
+        inFlight = true;
+        fetch('/cadence', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ c: r.visible ? +r.cadence.toFixed(2) : 0, v: r.visible, t: Date.now() }),
+        })
+          .then((res) => { if (!res.ok) throw new Error('HTTP ' + res.status); sent++; })
+          .catch(() => say('Upload failed - is the PC server still running?', true))
+          .finally(() => { inFlight = false; });
+      }
+
+      function stopStream() {
+        running = false;
+        if (stream) stream.getTracks().forEach((t) => t.stop());
+        stream = null;
+        video.srcObject = null;
+        go.style.display = '';
+        stop.style.display = 'none';
+        fill.style.width = '0%';
+        big.innerHTML = '– <small>steps/s</small>';
+      }
+
+      go.addEventListener('click', start);
+      stop.addEventListener('click', () => { stopStream(); say('stopped'); });
+      $('flip').addEventListener('click', () => {
+        face = face === 'environment' ? 'user' : 'environment';
+        lastDevice = ''; $('which').value = '';
+        if (running) start();
+      });
+      $('which').addEventListener('change', () => { if (running) start(); });
+      $('flipv').addEventListener('click', () => {
+        flipV = !flipV;
+        $('flipv').style.background = flipV ? '#86efac' : '#ffffff18';
+        $('flipv').textContent = 'Flip vertical: ' + (flipV ? 'ON' : 'OFF');
+        $('flipv').dataset.on = flipV ? '1' : '0';
+        video.style.transform = flipV ? 'scaleY(-1)' : '';
+        say(flipV ? 'flipped vertically' : 'normal orientation');
+      });
+      window.addEventListener('pagehide', stopStream);
+      setInterval(() => { if (running) say('sent ' + sent + ' readings to PC'); }, 1000);
+    </script>
+  </body>
+</html>

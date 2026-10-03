@@ -6,6 +6,7 @@ import { GESTURE_CONFIG } from '../cam/gestureConfig';
 import type { GestureEvent } from '../cam/gestureTypes';
 import { CompositeInputSource } from '../game/InputSource';
 import { GestureInputSource } from '../cam/GestureInputSource';
+import { JogSource } from '../cam/JogSource';
 import { KeyboardInputSource } from '../game/KeyboardInputSource';
 import { CameraError, CameraSource } from '../cam/CameraSource';
 import { LandmarkFilter } from '../cam/LandmarkFilter';
@@ -31,6 +32,8 @@ export class Controller {
   private filter = new LandmarkFilter();
   private engine = new DefaultGestureEngine();
   private gestureInput = new GestureInputSource();
+  /** Second phone pointed at the legs: jog cadence -> run speed. */
+  readonly jog = new JogSource();
   private keyboard = new KeyboardInputSource();
   private previews = new Set<HTMLCanvasElement>();
   private calibBuf: PoseFrame[] = [];
@@ -65,6 +68,7 @@ export class Controller {
     window.removeEventListener('keydown', this.onKey);
     this.keyboard.detach();
     this.stopCamera();
+    this.jog.stop();
     this.phoneCam.stop();
     this.estimator.dispose();
     this.game.dispose();
@@ -104,6 +108,8 @@ export class Controller {
     const s = settingsStore.get();
     this.engine.setSensitivity(s.sensitivity);
     this.game.applySettings({ reducedMotion: s.reducedMotion, quality: s.quality, volume: s.volume, music: s.music, sfx: s.sfx });
+    if (s.jogPhone && !this.jog.active) this.jog.start();
+    else if (!s.jogPhone && this.jog.active) this.jog.stop();
   }
 
   toast(msg: string) {
@@ -167,7 +173,7 @@ export class Controller {
     this.engine.reset();
     this.applySettings();
     this.filter.reset();
-    this.game.setInput(new CompositeInputSource([this.gestureInput, this.keyboard]));
+    this.game.setInput(new CompositeInputSource([this.gestureInput, this.jog, this.keyboard]));
     this.gestureInput.clear();
     this.estimator.start(this.camera.video, this.onPoseFrame);
     this.beginCalibration();
@@ -198,6 +204,7 @@ export class Controller {
     this.estimator.stop();
     this.camera.stop();
     this.gestureInput.clear();
+    this.jog.stop();
   }
 
   cancelSetup() {
@@ -221,8 +228,15 @@ export class Controller {
   private finishSetup() {
     const returning = uiStore.get().setup.returnToGame;
     uiStore.set({ screen: 'game' });
+    if (settingsStore.get().jogPhone) void this.checkJogPhone();
     if (returning && this.game.state === 'paused') this.game.resume();
     else this.startRun();
+  }
+
+  /** Non-blocking leg-phone status check after setup completes. */
+  private async checkJogPhone() {
+    const p = await this.jog.probe();
+    this.toast(p.message);
   }
 
   // ---------------- per pose-frame pipeline ----------------

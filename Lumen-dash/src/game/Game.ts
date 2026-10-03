@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import type { InputSource, RunnerInput } from './InputSource';
-import { LANE_W, OBSTACLE_BOX, PLAYER, QUALITY, RUN, SIM_DT, speedAt, tierAt, SPEED } from './config';
+import { JOG, LANE_W, OBSTACLE_BOX, PLAYER, QUALITY, RUN, SIM_DT, jogMultFor, speedAt, tierAt, SPEED } from './config';
 import type { Quality } from './config';
 import { RunnerModel } from './RunnerModel';
+import { Monster } from './Monster';
 import { GameAudio } from './audio';
 import { Particles } from './particles';
 import { Environment } from './Environment';
@@ -25,6 +26,10 @@ export interface HudState {
   speed: number;
   pips: number;
   closeness: number;
+  /** Leg-cadence in steps/sec from the second phone, or null when absent. */
+  jogCadence: number | null;
+  /** Current jog speed multiplier (1 = neutral). */
+  jogMult: number;
   best: number;
   newBest: boolean;
   biome: string;
@@ -82,7 +87,7 @@ export class Game {
   private world: World;
   private runner = new RunnerModel();
   private particles: Particles;
-  private hollow = new THREE.Group();
+  private monster = new Monster();
   private ro: ResizeObserver;
   private raf = 0;
   private lastNow = 0;
@@ -123,6 +128,10 @@ export class Game {
   private slideBuf = 0;
   private invuln = 0;
   private closeness = 0;
+  /** Raw cadence from the leg phone (steps/sec), null when absent. */
+  private jogCadence: number | null = null;
+  /** Smoothed jog speed multiplier. */
+  private jogMult = 1;
   private bonus = 0;
   private motes = 0;
   private streak = 0;
@@ -171,8 +180,7 @@ export class Game {
     this.world = new World(this.scene, this.seed, true);
     this.particles = new Particles(this.scene);
     this.scene.add(this.runner.object);
-    this.buildHollow();
-    this.scene.add(this.hollow);
+    this.scene.add(this.monster.object);
 
     this.applyQuality('medium');
     this.ro = new ResizeObserver(() => this.resize());
@@ -213,6 +221,8 @@ export class Game {
     this.jumpBuf = this.slideBuf = 0;
     this.invuln = 0;
     this.closeness = 0;
+    this.jogCadence = null;
+    this.jogMult = 1;
     this.bonus = 0;
     this.motes = 0;
     this.streak = 0;
@@ -321,25 +331,6 @@ export class Game {
     this.events.on('go', () => a.go());
   }
 
-  /** The Hollow: two dark, magenta-rimmed masses that creep in from the lower screen edges. */
-  private buildHollow() {
-    for (const side of [-1, 1]) {
-      const lobe = new THREE.Group();
-      const core = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(1.8, 1),
-        new THREE.MeshBasicMaterial({ color: '#05030f', transparent: true, opacity: 0.95, fog: false }),
-      );
-      const shell = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(2.2, 1),
-        new THREE.MeshBasicMaterial({ color: '#c026d3', transparent: true, opacity: 0.4, side: THREE.BackSide, blending: THREE.AdditiveBlending, fog: false }),
-      );
-      lobe.add(core, shell);
-      lobe.position.set(side * 3.4, 0, side * 0.6);
-      this.hollow.add(lobe);
-    }
-    this.hollow.visible = false;
-  }
-
   private applyQuality(q: Quality) {
     this.quality = q;
     const cfg = QUALITY[q];
@@ -394,6 +385,7 @@ export class Game {
   private pollInput(now: number, dtReal: number) {
     const inp = this.input ? this.input.poll(now) : null;
     this.trackingState = inp?.trackingState ?? 'n/a';
+    this.jogCadence = inp?.jogCadence ?? null;
     if (!inp) {
       this.slideHeld = false;
       return;
@@ -466,15 +458,27 @@ export class Game {
   private stepPlaying(dt: number) {
     this.simTime += dt;
     this.slowT = Math.max(0, this.slowT - dt / 1.5);
+    // jog speed: cadence -> bounded multiplier (fast attack, slower release)
+    const targetMult = this.jogCadence !== null ? jogMultFor(this.jogCadence) : 1;
+    const k = targetMult > this.jogMult ? 6 : 2.5;
+    this.jogMult += (targetMult - this.jogMult) * damp(k, dt);
     let mult = 1 - (1 - RUN.stumbleSlow) * Math.min(1, this.slowT * 1.5);
     if (this.dead) mult *= Math.max(0.05, 1 - this.dyingT / 0.5);
-    this.speed = speedAt(this.distance) * mult;
+    this.speed = speedAt(this.distance) * mult * this.jogMult;
     this.distance += this.speed * dt;
 
     this.invuln = Math.max(0, this.invuln - dt);
     this.jumpBuf -= dt;
     this.slideBuf -= dt;
-    this.closeness = Math.max(0, this.closeness - RUN.hollowRecover * dt);
+    if (!this.dead) this.closeness = Math.max(0, this.closeness - RUN.hollowRecover * dt);
+
+    // the monster gains when you jog slower than target, falls back when faster
+    if (this.jogCadence !== null && !this.dead) {
+      if (this.jogMult < 1) this.closeness += (1 - this.jogMult) * JOG.gainRate * dt;
+      else if (this.jogMult > 1) this.closeness -= (this.jogMult - 1) * JOG.recoverRate * dt;
+      this.closeness = Math.min(1, Math.max(0, this.closeness));
+    }
+    if (this.closeness >= 1 && !this.dead) this.die();
 
     // lanes
     this.prevX = this.x;
@@ -618,6 +622,7 @@ export class Game {
     this.timeScale = 0.25;
     this.shake = 0.8;
     this.sliding = false;
+    this.monster.lunge();
     const score = this.score;
     if (score > this.best) {
       this.best = score;
@@ -660,15 +665,11 @@ export class Game {
     // blink while invulnerable
     this.runner.setVisible(!(this.invuln > 0 && !this.dead && Math.floor(this.realTime * 14) % 2 === 0));
 
-    // the Hollow looms closer after a hit
-    this.hollow.visible = this.closeness > 0.05 && !menu;
-    this.hollow.position.set(this.camPos.x, 0.6, 6.5 - 5 * this.closeness);
-    const pulse = 1 + Math.sin(this.realTime * 3) * 0.06;
-    this.hollow.scale.setScalar(pulse);
-    this.hollow.children.forEach((c, i) => {
-      c.rotation.y += dt * (i ? 0.7 : -0.9);
-      c.rotation.z += dt * 0.4;
-    });
+    // the Hollow monster hunts from behind
+    this.monster.object.visible = this.closeness > 0.05 && !menu;
+    if (this.monster.object.visible) {
+      this.monster.update(dt, this.x, this.closeness, this.realTime);
+    }
 
     // camera rig
     const sp01 = clamp01((speed - SPEED.start) / (SPEED.max - SPEED.start));
@@ -748,6 +749,8 @@ export class Game {
       speed: this.speed,
       pips: this.closeness >= RUN.hollowLethal ? 1 : 2,
       closeness: this.closeness,
+      jogCadence: this.jogCadence,
+      jogMult: this.jogMult,
       best: this.best,
       newBest: this.newBest,
       biome: this.env.biomeName,

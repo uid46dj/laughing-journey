@@ -32,7 +32,8 @@ const c = {
 };
 
 const children = [];
-let adbSerial = null;
+/** Serials that already have the adb reverse tunnel (may be several phones). */
+const tunnelled = new Set();
 
 /** Prefixed, colourised pass-through so you can tell the three streams apart. */
 function start(label, color, cmd, args, opts = {}) {
@@ -114,28 +115,44 @@ async function setupTunnel(adb, serial) {
 }
 
 /**
- * Keep trying in the background, so plugging the phone in at any moment just works.
+ * Set up `adb reverse` for EVERY connected device — the body camera and the
+ * leg-jog sensor are two different phones hitting the same relay port.
+ */
+async function setupAllTunnels(adb) {
+  const out = await run(adb, ['devices']);
+  const serials = out
+    .split('\n')
+    .slice(1)
+    .map((line) => line.trim().match(/^(\S+)\s+(device|unauthorized|offline)\b/))
+    .filter((m) => m && m[2] === 'device')
+    .map((m) => m[1]);
+  for (const serial of serials) {
+    if (tunnelled.has(serial)) continue;
+    const ok = await setupTunnel(adb, serial);
+    if (ok) {
+      tunnelled.add(serial);
+      console.log(c.g(`  ✓ phone ${serial} connected — tunnel tcp:${PORT} ready`));
+      console.log(
+        c.dim(
+          `    On this phone open http://localhost:${PORT}/ (camera) or http://localhost:${PORT}/legs (jog sensor).`,
+        ),
+      );
+    } else {
+      console.log(c.y(`  ! phone ${serial} found but the tunnel did not stick`));
+    }
+  }
+  return serials.length;
+}
+
+/**
+ * Keep wiring up phones as they are plugged in, so a second phone
+ * (the jog sensor) can join at any moment.
  */
 function watchForPhone(adb) {
-  let done = false;
   const tick = async () => {
-    if (done) return;
-    const serial = await firstDevice(adb);
-    if (serial && serial !== adbSerial) {
-      adbSerial = serial;
-      const ok = await setupTunnel(adb, serial);
-      console.log(
-        ok
-          ? c.g(`  ✓ phone ${serial} connected — tunnel tcp:${PORT} ready`)
-          : c.y(`  ! phone ${serial} found but the tunnel did not stick`),
-      );
-      if (ok) {
-        console.log(c.dim(`  On the phone, open http://localhost:${PORT}/ and tap "Start streaming".`));
-        done = true;
-        return;
-      }
-    }
-    if (!done) setTimeout(tick, 3000);
+    const n = await setupAllTunnels(adb);
+    if (n === 0) setTimeout(tick, 3000);
+    else setTimeout(tick, 3000); // a second phone may still arrive
   };
   void tick();
 }
@@ -149,25 +166,18 @@ async function main() {
   // 1. relay server that receives the phone's frames
   start('relay', c.c, process.execPath, [path.join(__dirname, 'phonecam-server.mjs')]);
 
-  // 2. adb tunnel: phone -> this PC
+  // 2. adb tunnel: phones -> this PC
   const adb = await findAdb();
   if (!adb) {
     console.log(c.y('  ! adb not found — install Android platform-tools or add adb to PATH.'));
-    console.log(c.dim('    Game + relay still run; the phone camera will not work.'));
+    console.log(c.dim('    Game + relay still run; the phone cameras will not work.'));
   } else {
-    const serial = await firstDevice(adb);
-    if (serial) {
-      adbSerial = serial;
-      const ok = await setupTunnel(adb, serial);
-      console.log(
-        ok
-          ? c.g(`  ✓ phone ${serial} connected — tunnel tcp:${PORT} ready`)
-          : c.y(`  ! phone ${serial} found but the tunnel did not stick`),
-      );
-    } else {
+    const n = await setupAllTunnels(adb);
+    if (n === 0) {
       console.log(c.y('  ! no phone detected yet — plug it in with USB debugging ON and it will connect automatically.'));
-      watchForPhone(adb);
     }
+    // keep watching: a second phone (jog sensor) can join at any moment
+    watchForPhone(adb);
   }
 
   // 3. Vite dev server, so the game hot-reloads
@@ -189,11 +199,13 @@ async function main() {
   console.log('');
   console.log(`    ${c.b('Game (PC):     ')} http://localhost:5173`);
   console.log(`    ${c.b('Phone camera:  ')} http://localhost:${PORT}/`);
+  console.log(`    ${c.b('Jog sensor:    ')} http://localhost:${PORT}/legs   (second phone, pointed at your legs)`);
   console.log('');
-  console.log(c.dim('  1. On the phone, open the phone-camera URL and tap "Start streaming".'));
-  console.log(c.dim('  2. In the game: Settings -> "Use phone as camera" ON.'));
-  console.log(c.dim('  3. Click "Play with Camera" and allow the camera permission.'));
-  if (!ready) console.log(c.y('\n  (relay still starting — wait a second, then reload the phone page)'));
+  console.log(c.dim('  1. On the first phone, open the phone-camera URL and tap "Start streaming".'));
+  console.log(c.dim('  2. On the second phone, open the jog-sensor URL and tap "Start sensing".'));
+  console.log(c.dim('  3. In the game: Settings -> "Use phone as camera" ON, "Second phone = jog speed" ON.'));
+  console.log(c.dim('  4. Click "Play with Camera" and allow the camera permission.'));
+  if (!ready) console.log(c.y('\n  (relay still starting — wait a second, then reload the phone pages)'));
   console.log('');
   console.log(c.dim('  Ctrl+C stops everything.'));
   console.log('');
@@ -221,7 +233,7 @@ async function shutdown() {
     }
   }
   const adb = await findAdb();
-  if (adb && adbSerial) await run(adb, ['-s', adbSerial, 'reverse', '--remove', `tcp:${PORT}`]);
+  if (adb) for (const serial of tunnelled) await run(adb, ['-s', serial, 'reverse', '--remove', `tcp:${PORT}`]);
   process.exit(0);
 }
 

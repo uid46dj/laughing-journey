@@ -12,6 +12,11 @@ export interface RunnerInput {
   slideHeld: boolean;
   /** Edge-triggered. */
   pausePressed: boolean;
+  /**
+   * Leg-cadence in steps/sec from the second phone (jog speed), or null when
+   * no leg phone is connected / its legs are not visible. Null => neutral speed.
+   */
+  jogCadence: number | null;
   trackingState: TrackingInfo;
 }
 
@@ -25,10 +30,11 @@ export const NEUTRAL_INPUT: RunnerInput = {
   jumpPressed: false,
   slideHeld: false,
   pausePressed: false,
+  jogCadence: null,
   trackingState: 'n/a',
 };
 
-/** Merges several sources (e.g. webcam + keyboard). */
+/** Merges several sources (e.g. webcam + jog phone + keyboard). */
 export class CompositeInputSource implements InputSource {
   constructor(private sources: InputSource[]) {}
 
@@ -42,6 +48,7 @@ export class CompositeInputSource implements InputSource {
       out.jumpPressed ||= i.jumpPressed;
       out.slideHeld ||= i.slideHeld;
       out.pausePressed ||= i.pausePressed;
+      if (i.jogCadence !== null) out.jogCadence = i.jogCadence;
       if (i.trackingState !== 'n/a') out.trackingState = i.trackingState;
     }
     out.laneStep = step > 0 ? 1 : step < 0 ? -1 : 0;
