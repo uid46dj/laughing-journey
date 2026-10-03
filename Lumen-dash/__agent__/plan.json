@@ -3,17 +3,17 @@
   "items": [
     {
       "title": "Inspect the project and reproduce reported errors",
-      "status": "in-progress"
+      "status": "done"
     },
     {
-      "title": "Fix the identified code or configuration errors",
-      "status": "pending"
+      "title": "Restore the missing project dependencies",
+      "status": "done"
     },
     {
       "title": "Rerun checks and review the changes",
-      "status": "pending"
+      "status": "done"
     }
   ],
-  "updated_at": "2026-10-03T05:55:41.792Z",
+  "updated_at": "2026-10-03T05:57:18.914Z",
   "session_id": "01a10053-e713-73d7-bd18-1213cbfceca8"
 }
